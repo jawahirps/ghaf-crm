@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ghaf CRM</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ghaf: {
+              50:  '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8fafc; }
+    .sidebar-link { transition: all 0.15s; }
+    .sidebar-link:hover { background: rgba(255,255,255,0.12); }
+    .sidebar-link.active { background: rgba(255,255,255,0.18); border-left: 3px solid #4ade80; }
+    .kanban-col { min-height: 400px; }
+    .card-hover { transition: box-shadow 0.15s, transform 0.15s; }
+    .card-hover:hover { box-shadow: 0 8px 25px rgba(0,0,0,0.1); transform: translateY(-1px); }
+    .stage-badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    .modal-backdrop { animation: fadeIn 0.15s ease; }
+    @keyframes fadeIn { from { opacity:0 } to { opacity:1 } }
+    .modal-content { animation: slideUp 0.2s ease; }
+    @keyframes slideUp { from { opacity:0; transform:translateY(20px) } to { opacity:1; transform:translateY(0) } }
+    .bar-fill { transition: width 1s ease; }
+    .chart-bar { transition: height 0.8s ease; }
+    .donut-segment { transition: stroke-dashoffset 1s ease; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useContext, createContext, useCallback } = React;
+
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const initialContacts = [
+  { id:1, name:'Ahmed Al Mansoori', email:'ahmed@emiratesgroup.ae', phone:'+971 50 123 4567', company:'Emirates Group', title:'CEO', status:'Active', tags:['VIP','Enterprise'], created:'2026-01-15', lastContact:'2026-03-28', avatar:'AM' },
+  { id:2, name:'Fatima Al Hashimi',  email:'fatima@etisalat.ae',     phone:'+971 55 987 6543', company:'Etisalat',       title:'VP Sales',     status:'Active', tags:['Partner'],         created:'2026-02-01', lastContact:'2026-04-01', avatar:'FA' },
+  { id:3, name:'Omar Bin Khalid',    email:'omar@adnoc.ae',          phone:'+971 52 456 7890', company:'ADNOC',          title:'Procurement Director', status:'Prospect', tags:['Oil & Gas'], created:'2026-02-14', lastContact:'2026-03-20', avatar:'OK' },
+  { id:4, name:'Mariam Al Zaabi',    email:'mariam@dewa.gov.ae',     phone:'+971 54 321 0987', company:'DEWA',           title:'CFO',          status:'Active', tags:['Government'],      created:'2026-01-28', lastContact:'2026-04-02', avatar:'MZ' },
+  { id:5, name:'Khalid Al Dhaheri',  email:'khalid@mubadala.ae',     phone:'+971 50 654 3210', company:'Mubadala',       title:'Director',     status:'Inactive', tags:['Investment'],   created:'2025-12-10', lastContact:'2026-02-15', avatar:'KD' },
+  { id:6, name:'Sara Al Remeithi',   email:'sara@du.ae',             phone:'+971 56 789 0123', company:'du Telecom',     title:'CTO',          status:'Active', tags:['Tech','Partner'],  created:'2026-03-05', lastContact:'2026-04-03', avatar:'SR' },
+  { id:7, name:'Hamdan Al Falasi',   email:'hamdan@adia.ae',         phone:'+971 52 234 5678', company:'ADIA',           title:'Fund Manager', status:'Prospect', tags:['Finance'],       created:'2026-03-12', lastContact:'2026-03-30', avatar:'HF' },
+  { id:8, name:'Noura Al Mazrouei',  email:'noura@digitaldubia.ae',  phone:'+971 55 876 5432', company:'Digital Dubai',  title:'Head of Innovation', status:'Active', tags:['Gov-Tech'], created:'2026-03-20', lastContact:'2026-04-04', avatar:'NM' },
+];
+
+const initialLeads = [
+  { id:1, name:'Smart City Platform',     contact:'Ahmed Al Mansoori', company:'Emirates Group', value:450000, source:'Conference',    stage:'New',         score:85, owner:'Rashed', created:'2026-03-01' },
+  { id:2, name:'ERP Implementation',      contact:'Fatima Al Hashimi', company:'Etisalat',       value:320000, source:'Referral',      stage:'Contacted',   score:72, owner:'Layla',  created:'2026-03-08' },
+  { id:3, name:'Cloud Migration',         contact:'Omar Bin Khalid',   company:'ADNOC',          value:890000, source:'Website',       stage:'Qualified',   score:91, owner:'Rashed', created:'2026-02-20' },
+  { id:4, name:'Data Analytics Suite',    contact:'Mariam Al Zaabi',   company:'DEWA',           value:210000, source:'LinkedIn',      stage:'Proposal',    score:68, owner:'Sara',   created:'2026-03-15' },
+  { id:5, name:'Security Audit',          contact:'Khalid Al Dhaheri', company:'Mubadala',       value:95000,  source:'Cold Call',     stage:'New',         score:45, owner:'Layla',  created:'2026-04-01' },
+  { id:6, name:'5G Network Upgrade',      contact:'Sara Al Remeithi',  company:'du Telecom',     value:1200000,source:'Partnership',   stage:'Negotiation', score:88, owner:'Rashed', created:'2026-02-10' },
+  { id:7, name:'Investment Portal',       contact:'Hamdan Al Falasi',  company:'ADIA',           value:540000, source:'Event',         stage:'Qualified',   score:79, owner:'Sara',   created:'2026-03-22' },
+  { id:8, name:'Digital Gov Services',    contact:'Noura Al Mazrouei', company:'Digital Dubai',  value:750000, source:'Government RFP',stage:'Proposal',    score:93, owner:'Rashed', created:'2026-03-28' },
+];
+
+const initialDeals = [
+  { id:1, name:'Smart City Platform',  contact:'Ahmed Al Mansoori', company:'Emirates Group', value:450000, stage:'Prospecting',  probability:20, close:'2026-06-30', owner:'Rashed' },
+  { id:2, name:'ERP Implementation',   contact:'Fatima Al Hashimi', company:'Etisalat',       value:320000, stage:'Qualification',probability:40, close:'2026-05-31', owner:'Layla'  },
+  { id:3, name:'Cloud Migration',      contact:'Omar Bin Khalid',   company:'ADNOC',          value:890000, stage:'Proposal',     probability:60, close:'2026-05-15', owner:'Rashed' },
+  { id:4, name:'Data Analytics Suite', contact:'Mariam Al Zaabi',   company:'DEWA',           value:210000, stage:'Negotiation',  probability:80, close:'2026-04-30', owner:'Sara'   },
+  { id:5, name:'5G Network Upgrade',   contact:'Sara Al Remeithi',  company:'du Telecom',     value:1200000,stage:'Closed Won',   probability:100,close:'2026-03-31', owner:'Rashed' },
+  { id:6, name:'Digital Gov Services', contact:'Noura Al Mazrouei', company:'Digital Dubai',  value:750000, stage:'Proposal',     probability:60, close:'2026-06-15', owner:'Rashed' },
+  { id:7, name:'Investment Portal',    contact:'Hamdan Al Falasi',  company:'ADIA',           value:540000, stage:'Negotiation',  probability:80, close:'2026-05-20', owner:'Sara'   },
+  { id:8, name:'Security Audit',       contact:'Khalid Al Dhaheri', company:'Mubadala',       value:95000,  stage:'Closed Lost',  probability:0,  close:'2026-03-15', owner:'Layla'  },
+];
+
+const initialAccounts = [
+  { id:1, name:'Emirates Group',  industry:'Aviation',       employees:105000, revenue:'AED 115B', website:'emirates.com',      phone:'+971 4 708 1111', status:'Customer',  contacts:3, deals:2, owner:'Rashed' },
+  { id:2, name:'Etisalat',        industry:'Telecom',        employees:8000,   revenue:'AED 52B',  website:'etisalat.ae',        phone:'+971 2 628 3333', status:'Customer',  contacts:2, deals:1, owner:'Layla'  },
+  { id:3, name:'ADNOC',           industry:'Oil & Gas',      employees:50000,  revenue:'AED 420B', website:'adnoc.ae',           phone:'+971 2 602 0000', status:'Prospect',  contacts:1, deals:1, owner:'Rashed' },
+  { id:4, name:'DEWA',            industry:'Utilities',      employees:11000,  revenue:'AED 22B',  website:'dewa.gov.ae',        phone:'+971 4 601 9999', status:'Customer',  contacts:2, deals:2, owner:'Sara'   },
+  { id:5, name:'Mubadala',        industry:'Investment',     employees:3000,   revenue:'AED 300B', website:'mubadala.ae',        phone:'+971 2 413 0000', status:'Inactive',  contacts:1, deals:1, owner:'Layla'  },
+  { id:6, name:'du Telecom',      industry:'Telecom',        employees:4500,   revenue:'AED 18B',  website:'du.ae',              phone:'+971 4 360 0000', status:'Customer',  contacts:2, deals:1, owner:'Rashed' },
+  { id:7, name:'ADIA',            industry:'Finance',        employees:1500,   revenue:'AED 750B', website:'adia.ae',            phone:'+971 2 415 0000', status:'Prospect',  contacts:1, deals:1, owner:'Sara'   },
+  { id:8, name:'Digital Dubai',   industry:'Government',     employees:500,    revenue:'N/A',      website:'digitaldubai.ae',    phone:'+971 4 207 7000', status:'Customer',  contacts:2, deals:1, owner:'Rashed' },
+];
+
+const initialActivities = [
+  { id:1,  type:'Call',    subject:'Discovery call re: Smart City',   contact:'Ahmed Al Mansoori', date:'2026-04-05', time:'10:00', status:'Completed', duration:'45 min',  notes:'Interested in Phase 1 POC' },
+  { id:2,  type:'Email',   subject:'Proposal sent for ERP',           contact:'Fatima Al Hashimi', date:'2026-04-04', time:'14:30', status:'Completed', duration:'-',       notes:'Sent 3-tier pricing options' },
+  { id:3,  type:'Meeting', subject:'Cloud migration scoping',         contact:'Omar Bin Khalid',   date:'2026-04-06', time:'09:00', status:'Scheduled', duration:'2 hrs',   notes:'Bring infra team' },
+  { id:4,  type:'Call',    subject:'Follow-up on analytics demo',     contact:'Mariam Al Zaabi',   date:'2026-04-03', time:'11:30', status:'Completed', duration:'20 min',  notes:'Requested extended trial' },
+  { id:5,  type:'Meeting', subject:'5G contract signing',             contact:'Sara Al Remeithi',  date:'2026-04-07', time:'15:00', status:'Scheduled', duration:'1 hr',    notes:'Legal team joining' },
+  { id:6,  type:'Email',   subject:'Intro email to Hamdan',           contact:'Hamdan Al Falasi',  date:'2026-04-05', time:'09:15', status:'Pending',   duration:'-',       notes:'Attach company profile' },
+  { id:7,  type:'Call',    subject:'Gov portal requirements',         contact:'Noura Al Mazrouei', date:'2026-04-02', time:'13:00', status:'Completed', duration:'60 min',  notes:'Phase 1 approved internally' },
+  { id:8,  type:'Meeting', subject:'Quarterly business review',       contact:'Ahmed Al Mansoori', date:'2026-04-10', time:'10:00', status:'Scheduled', duration:'3 hrs',   notes:'Exec-level meeting at their HQ' },
+];
+
+const dealStages = ['Prospecting','Qualification','Proposal','Negotiation','Closed Won','Closed Lost'];
+const leadStages = ['New','Contacted','Qualified','Proposal','Negotiation','Converted','Lost'];
+const contactStatuses = ['Active','Prospect','Inactive'];
+const activityTypes = ['Call','Email','Meeting','Task'];
+const activityStatuses = ['Pending','Scheduled','Completed'];
+
+// ─── CONTEXT ──────────────────────────────────────────────────────────────────
+const CRMContext = createContext();
+
+function CRMProvider({ children }) {
+  const [contacts,   setContacts]   = useState(initialContacts);
+  const [leads,      setLeads]      = useState(initialLeads);
+  const [deals,      setDeals]      = useState(initialDeals);
+  const [accounts,   setAccounts]   = useState(initialAccounts);
+  const [activities, setActivities] = useState(initialActivities);
+
+  const addRecord    = (type, rec) => {
+    const setters = { contacts:setContacts, leads:setLeads, deals:setDeals, accounts:setAccounts, activities:setActivities };
+    const lists   = { contacts, leads, deals, accounts, activities };
+    const newId   = Math.max(0, ...lists[type].map(r=>r.id)) + 1;
+    setters[type](prev => [...prev, { ...rec, id: newId }]);
+  };
+  const updateRecord = (type, rec) => {
+    const setters = { contacts:setContacts, leads:setLeads, deals:setDeals, accounts:setAccounts, activities:setActivities };
+    setters[type](prev => prev.map(r => r.id === rec.id ? rec : r));
+  };
+  const deleteRecord = (type, id) => {
+    const setters = { contacts:setContacts, leads:setLeads, deals:setDeals, accounts:setAccounts, activities:setActivities };
+    setters[type](prev => prev.filter(r => r.id !== id));
+  };
+
+  return (
+    <CRMContext.Provider value={{ contacts, leads, deals, accounts, activities, addRecord, updateRecord, deleteRecord }}>
+      {children}
+    </CRMContext.Provider>
+  );
+}
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+const fmt = n => n >= 1000000 ? `AED ${(n/1000000).toFixed(1)}M` : n >= 1000 ? `AED ${(n/1000).toFixed(0)}K` : `AED ${n}`;
+const fmtNum = n => n >= 1000000 ? `${(n/1000000).toFixed(1)}M` : n >= 1000 ? `${(n/1000).toFixed(0)}K` : `${n}`;
+
+const avatarColors = ['bg-emerald-500','bg-blue-500','bg-violet-500','bg-amber-500','bg-rose-500','bg-cyan-500','bg-fuchsia-500','bg-teal-500'];
+const avatarColor  = (s='') => avatarColors[s.charCodeAt(0) % avatarColors.length];
+
+const statusColor = s => ({
+  Active:'bg-emerald-100 text-emerald-700', Prospect:'bg-blue-100 text-blue-700', Inactive:'bg-slate-100 text-slate-500',
+  New:'bg-slate-100 text-slate-600', Contacted:'bg-blue-100 text-blue-700', Qualified:'bg-violet-100 text-violet-700',
+  Proposal:'bg-amber-100 text-amber-700', Negotiation:'bg-orange-100 text-orange-700',
+  Converted:'bg-emerald-100 text-emerald-700', Lost:'bg-red-100 text-red-500',
+  'Closed Won':'bg-emerald-100 text-emerald-700', 'Closed Lost':'bg-red-100 text-red-500',
+  Customer:'bg-emerald-100 text-emerald-700',
+  Completed:'bg-emerald-100 text-emerald-700', Scheduled:'bg-blue-100 text-blue-700', Pending:'bg-amber-100 text-amber-700',
+}[s] || 'bg-slate-100 text-slate-600');
+
+const typeIcon = t => ({ Call:'📞', Email:'✉️', Meeting:'📅', Task:'✅' }[t] || '📌');
+
+// ─── UI COMPONENTS ───────────────────────────────────────────────────────────
+
+function Avatar({ name='?', size='md' }) {
+  const s = size === 'lg' ? 'w-12 h-12 text-base' : size === 'sm' ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm';
+  return (
+    <div className={`${s} ${avatarColor(name)} rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0`}>
+      {name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
+    </div>
+  );
+}
+
+function Badge({ label, color }) {
+  return <span className={`stage-badge ${color || statusColor(label)}`}>{label}</span>;
+}
+
+function Modal({ title, onClose, children, wide }) {
+  return (
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className={`modal-content bg-white rounded-2xl shadow-2xl w-full ${wide?'max-w-2xl':'max-w-lg'} max-h-[90vh] overflow-y-auto`}>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
+        </div>
+        <div className="p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-600 mb-1">{label}</label>
+      {children}
+    </div>
+  );
+}
+const inputCls = "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ghaf-400 focus:border-transparent";
+
+function Input({ label, ...props }) {
+  return <Field label={label}><input className={inputCls} {...props} /></Field>;
+}
+
+function Select({ label, options, ...props }) {
+  return (
+    <Field label={label}>
+      <select className={inputCls} {...props}>
+        {options.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    </Field>
+  );
+}
+
+function SearchBar({ value, onChange, placeholder }) {
+  return (
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+      <input
+        className="border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-ghaf-400 bg-white"
+        placeholder={placeholder || 'Search…'}
+        value={value}
+        onChange={e=>onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function KpiCard({ label, value, sub, icon, color }) {
+  return (
+    <div className={`bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center gap-4`}>
+      <div className={`w-12 h-12 rounded-xl ${color} flex items-center justify-center text-2xl flex-shrink-0`}>{icon}</div>
+      <div>
+        <div className="text-2xl font-bold text-slate-800">{value}</div>
+        <div className="text-sm font-medium text-slate-500">{label}</div>
+        {sub && <div className="text-xs text-emerald-600 font-medium mt-0.5">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+
+const navItems = [
+  { id:'dashboard',   icon:'🏠', label:'Dashboard'  },
+  { id:'contacts',    icon:'👥', label:'Contacts'   },
+  { id:'leads',       icon:'🎯', label:'Leads'      },
+  { id:'deals',       icon:'💼', label:'Deals'      },
+  { id:'accounts',    icon:'🏢', label:'Accounts'   },
+  { id:'activities',  icon:'📋', label:'Activities' },
+  { id:'reports',     icon:'📊', label:'Reports'    },
+];
+
+function Sidebar({ active, setActive }) {
+  return (
+    <aside className="w-60 min-h-screen bg-gradient-to-b from-ghaf-800 to-ghaf-900 flex flex-col flex-shrink-0">
+      {/* Logo */}
+      <div className="px-5 py-6 flex items-center gap-3 border-b border-white/10">
+        <div className="w-9 h-9 bg-ghaf-400 rounded-xl flex items-center justify-center text-ghaf-900 font-black text-lg shadow-lg">G</div>
+        <div>
+          <div className="text-white font-bold text-base leading-tight">Ghaf CRM</div>
+          <div className="text-ghaf-300 text-xs">Enterprise Edition</div>
+        </div>
+      </div>
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5">
+        {navItems.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActive(item.id)}
+            className={`sidebar-link w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-white/80 hover:text-white ${active===item.id?'active text-white':''}`}
+          >
+            <span className="text-base">{item.icon}</span>
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      {/* User */}
+      <div className="px-4 py-4 border-t border-white/10 flex items-center gap-3">
+        <div className="w-8 h-8 bg-ghaf-500 rounded-full flex items-center justify-center text-white text-xs font-bold">RK</div>
+        <div>
+          <div className="text-white text-sm font-medium">Rashed Khalid</div>
+          <div className="text-ghaf-300 text-xs">Sales Manager</div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+// ─── TOPBAR ───────────────────────────────────────────────────────────────────
+
+function TopBar({ title, children }) {
+  return (
+    <div className="bg-white border-b border-slate-100 px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+      <h1 className="text-xl font-bold text-slate-800">{title}</h1>
+      <div className="flex items-center gap-3">{children}</div>
+    </div>
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+
+function Dashboard() {
+  const { contacts, leads, deals, activities } = useContext(CRMContext);
+  const pipeline = dealStages.map(s => ({ stage: s, total: deals.filter(d=>d.stage===s).reduce((a,d)=>a+d.value,0), count: deals.filter(d=>d.stage===s).length }));
+  const won  = deals.filter(d=>d.stage==='Closed Won').reduce((a,d)=>a+d.value,0);
+  const pipe = deals.filter(d=>!['Closed Won','Closed Lost'].includes(d.stage)).reduce((a,d)=>a+d.value,0);
+  const maxBar = Math.max(...pipeline.map(p=>p.total)) || 1;
+
+  const months = ['Jan','Feb','Mar','Apr'];
+  const revenue = [820000, 1150000, 980000, 1400000];
+  const maxRev = Math.max(...revenue);
+
+  const recentAct = [...activities].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KpiCard label="Total Contacts"    value={contacts.length}  sub="+3 this month"          icon="👥" color="bg-blue-50"    />
+        <KpiCard label="Active Leads"      value={leads.filter(l=>!['Converted','Lost'].includes(l.stage)).length} sub="+5 this month" icon="🎯" color="bg-violet-50" />
+        <KpiCard label="Pipeline Value"    value={fmt(pipe)}        sub="Across open deals"      icon="💼" color="bg-amber-50"   />
+        <KpiCard label="Revenue Won"       value={fmt(won)}         sub="This quarter"           icon="🏆" color="bg-emerald-50" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Pipeline funnel */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <h3 className="font-semibold text-slate-700 mb-4">Deal Pipeline by Stage</h3>
+          <div className="space-y-3">
+            {pipeline.map(p => (
+              <div key={p.stage} className="flex items-center gap-3">
+                <div className="w-28 text-xs text-slate-500 font-medium truncate">{p.stage}</div>
+                <div className="flex-1 bg-slate-100 rounded-full h-5 relative">
+                  <div className="bar-fill h-5 rounded-full bg-gradient-to-r from-ghaf-500 to-ghaf-400 flex items-center px-2"
+                       style={{ width: `${Math.max((p.total/maxBar)*100,p.total?4:0)}%` }}>
+                  </div>
+                </div>
+                <div className="w-24 text-xs text-right text-slate-600 font-semibold">{fmt(p.total)}</div>
+                <div className="w-8 text-xs text-center text-slate-400">{p.count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Lead source donut */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <h3 className="font-semibold text-slate-700 mb-4">Lead Sources</h3>
+          <LeadSourceChart leads={leads} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Revenue bar chart */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <h3 className="font-semibold text-slate-700 mb-4">Monthly Revenue (AED)</h3>
+          <div className="flex items-end gap-4 h-40 mt-2">
+            {months.map((m,i) => (
+              <div key={m} className="flex-1 flex flex-col items-center gap-1">
+                <div className="text-xs font-semibold text-slate-600">{fmtNum(revenue[i])}</div>
+                <div className="w-full rounded-t-lg bg-gradient-to-t from-ghaf-600 to-ghaf-400 chart-bar"
+                     style={{ height: `${(revenue[i]/maxRev)*110}px` }}></div>
+                <div className="text-xs text-slate-400">{m}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent activities */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <h3 className="font-semibold text-slate-700 mb-4">Recent Activities</h3>
+          <div className="space-y-3">
+            {recentAct.map(a => (
+              <div key={a.id} className="flex items-center gap-3">
+                <span className="text-xl">{typeIcon(a.type)}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-slate-700 truncate">{a.subject}</div>
+                  <div className="text-xs text-slate-400">{a.contact} · {a.date}</div>
+                </div>
+                <Badge label={a.status} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Top deals */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+        <h3 className="font-semibold text-slate-700 mb-4">Top Open Deals</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="text-xs text-slate-500 border-b border-slate-100">
+              <th className="text-left py-2 font-medium">Deal</th>
+              <th className="text-left py-2 font-medium">Account</th>
+              <th className="text-left py-2 font-medium">Stage</th>
+              <th className="text-right py-2 font-medium">Value</th>
+              <th className="text-right py-2 font-medium">Close Date</th>
+            </tr></thead>
+            <tbody>
+              {deals.filter(d=>!['Closed Won','Closed Lost'].includes(d.stage)).sort((a,b)=>b.value-a.value).slice(0,5).map(d=>(
+                <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                  <td className="py-3 font-medium text-slate-700">{d.name}</td>
+                  <td className="py-3 text-slate-500">{d.company}</td>
+                  <td className="py-3"><Badge label={d.stage} /></td>
+                  <td className="py-3 text-right font-semibold text-slate-700">{fmt(d.value)}</td>
+                  <td className="py-3 text-right text-slate-500">{d.close}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LeadSourceChart({ leads }) {
+  const sources = {};
+  leads.forEach(l => { sources[l.source] = (sources[l.source]||0) + 1; });
+  const entries = Object.entries(sources).sort((a,b)=>b[1]-a[1]);
+  const total   = leads.length;
+  const colors  = ['#22c55e','#3b82f6','#8b5cf6','#f59e0b','#ef4444','#06b6d4','#ec4899'];
+  let pct = 0;
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-center">
+        <svg viewBox="0 0 100 100" className="w-28 h-28 -rotate-90">
+          {entries.map((e,i) => {
+            const p = (e[1]/total)*100;
+            const el = (
+              <circle key={e[0]} cx="50" cy="50" r="40"
+                fill="none" stroke={colors[i%colors.length]} strokeWidth="18"
+                strokeDasharray={`${(p/100)*251.2} ${251.2}`}
+                strokeDashoffset={`-${(pct/100)*251.2}`} />
+            );
+            pct += p;
+            return el;
+          })}
+          <circle cx="50" cy="50" r="31" fill="white" />
+        </svg>
+      </div>
+      {entries.map((e,i) => (
+        <div key={e[0]} className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-2.5 h-2.5 rounded-full" style={{ background: colors[i%colors.length] }}></div>
+            <span className="text-slate-600">{e[0]}</span>
+          </div>
+          <span className="font-semibold text-slate-700">{e[1]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── CONTACTS ─────────────────────────────────────────────────────────────────
+
+function Contacts() {
+  const { contacts, addRecord, updateRecord, deleteRecord } = useContext(CRMContext);
+  const [search, setSearch]   = useState('');
+  const [filter, setFilter]   = useState('All');
+  const [modal,  setModal]    = useState(null); // null | 'add' | 'edit' | 'view'
+  const [sel,    setSel]      = useState(null);
+
+  const filtered = contacts.filter(c =>
+    (filter==='All' || c.status===filter) &&
+    (c.name.toLowerCase().includes(search.toLowerCase()) ||
+     c.company.toLowerCase().includes(search.toLowerCase()) ||
+     c.email.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const emptyForm = { name:'', email:'', phone:'', company:'', title:'', status:'Active', tags:'', avatar:'' };
+  const [form, setForm] = useState(emptyForm);
+
+  const openAdd  = () => { setForm(emptyForm); setModal('add'); };
+  const openEdit = c  => { setForm({...c, tags: (c.tags||[]).join(', ')}); setSel(c); setModal('edit'); };
+  const openView = c  => { setSel(c); setModal('view'); };
+
+  const save = () => {
+    const rec = { ...form, tags: form.tags.split(',').map(t=>t.trim()).filter(Boolean), avatar: form.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() };
+    if (modal==='add') addRecord('contacts', { ...rec, created: new Date().toISOString().split('T')[0], lastContact: new Date().toISOString().split('T')[0] });
+    else updateRecord('contacts', { ...sel, ...rec });
+    setModal(null);
+  };
+
+  return (
+    <div>
+      <TopBar title="Contacts">
+        <SearchBar value={search} onChange={setSearch} placeholder="Search contacts…" />
+        <div className="flex gap-1">
+          {['All',...contactStatuses].map(s=>(
+            <button key={s} onClick={()=>setFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filter===s?'bg-ghaf-600 text-white':'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{s}</button>
+          ))}
+        </div>
+        <button onClick={openAdd} className="bg-ghaf-600 hover:bg-ghaf-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm">+ Add Contact</button>
+      </TopBar>
+
+      <div className="p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{['Contact','Company','Email','Phone','Status','Tags','Last Contact',''].map(h=>(
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {filtered.map(c=>(
+                  <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50/60 cursor-pointer" onClick={()=>openView(c)}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={c.name} size="sm" />
+                        <div>
+                          <div className="font-medium text-slate-800">{c.name}</div>
+                          <div className="text-xs text-slate-400">{c.title}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600">{c.company}</td>
+                    <td className="px-4 py-3 text-slate-500">{c.email}</td>
+                    <td className="px-4 py-3 text-slate-500">{c.phone}</td>
+                    <td className="px-4 py-3"><Badge label={c.status} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1 flex-wrap">
+                        {(c.tags||[]).map(t=><span key={t} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{t}</span>)}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-400 text-xs">{c.lastContact}</td>
+                    <td className="px-4 py-3" onClick={e=>e.stopPropagation()}>
+                      <div className="flex gap-2">
+                        <button onClick={()=>openEdit(c)} className="text-slate-400 hover:text-ghaf-600 text-sm">✏️</button>
+                        <button onClick={()=>deleteRecord('contacts',c.id)} className="text-slate-400 hover:text-red-500 text-sm">🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 text-xs text-slate-400 border-t border-slate-100">{filtered.length} contacts</div>
+        </div>
+      </div>
+
+      {/* Add/Edit Modal */}
+      {(modal==='add'||modal==='edit') && (
+        <Modal title={modal==='add'?'Add Contact':'Edit Contact'} onClose={()=>setModal(null)}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2"><Input label="Full Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Ahmed Al Mansoori" /></div>
+            <Input label="Email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="email@company.ae" />
+            <Input label="Phone" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} placeholder="+971 50 000 0000" />
+            <Input label="Company" value={form.company} onChange={e=>setForm({...form,company:e.target.value})} placeholder="Company name" />
+            <Input label="Job Title" value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="CEO" />
+            <Select label="Status" options={contactStatuses} value={form.status} onChange={e=>setForm({...form,status:e.target.value})} />
+            <Input label="Tags (comma separated)" value={form.tags} onChange={e=>setForm({...form,tags:e.target.value})} placeholder="VIP, Enterprise" />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={()=>setModal(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:bg-slate-50">Cancel</button>
+            <button onClick={save} className="px-5 py-2 rounded-xl bg-ghaf-600 hover:bg-ghaf-700 text-white text-sm font-semibold">Save</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* View Modal */}
+      {modal==='view' && sel && (
+        <Modal title="Contact Details" onClose={()=>setModal(null)} wide>
+          <div className="flex items-start gap-5 mb-6">
+            <Avatar name={sel.name} size="lg" />
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">{sel.name}</h2>
+              <p className="text-slate-500">{sel.title} at {sel.company}</p>
+              <div className="flex gap-2 mt-2">
+                <Badge label={sel.status} />
+                {(sel.tags||[]).map(t=><span key={t} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{t}</span>)}
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {[['Email',sel.email],['Phone',sel.phone],['Company',sel.company],['Title',sel.title],['Created',sel.created],['Last Contact',sel.lastContact]].map(([l,v])=>(
+              <div key={l}><span className="text-slate-400">{l}: </span><span className="font-medium text-slate-700">{v}</span></div>
+            ))}
+          </div>
+          <div className="flex justify-end mt-6">
+            <button onClick={()=>{setModal(null); setTimeout(()=>openEdit(sel),0);}} className="px-5 py-2 rounded-xl bg-ghaf-600 text-white text-sm font-semibold">Edit Contact</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── LEADS ────────────────────────────────────────────────────────────────────
+
+function Leads() {
+  const { leads, addRecord, updateRecord, deleteRecord } = useContext(CRMContext);
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('All');
+  const [modal, setModal]   = useState(null);
+  const [sel, setSel]       = useState(null);
+  const emptyForm = { name:'', contact:'', company:'', value:'', source:'Website', stage:'New', score:50, owner:'Rashed' };
+  const [form, setForm]     = useState(emptyForm);
+
+  const filtered = leads.filter(l =>
+    (stageFilter==='All' || l.stage===stageFilter) &&
+    (l.name.toLowerCase().includes(search.toLowerCase()) || l.company.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const stageSummary = leadStages.map(s=>({ stage:s, count:leads.filter(l=>l.stage===s).length, value:leads.filter(l=>l.stage===s).reduce((a,l)=>a+l.value,0) }));
+
+  const openAdd  = () => { setForm(emptyForm); setModal('add'); };
+  const openEdit = l => { setForm({...l}); setSel(l); setModal('edit'); };
+
+  const save = () => {
+    const rec = { ...form, value: parseInt(form.value)||0, score: parseInt(form.score)||0 };
+    if (modal==='add') addRecord('leads', { ...rec, created: new Date().toISOString().split('T')[0] });
+    else updateRecord('leads', { ...sel, ...rec });
+    setModal(null);
+  };
+
+  const scoreColor = s => s>=80?'text-emerald-600':s>=60?'text-amber-600':'text-red-500';
+
+  return (
+    <div>
+      <TopBar title="Leads">
+        <SearchBar value={search} onChange={setSearch} placeholder="Search leads…" />
+        <button onClick={openAdd} className="bg-ghaf-600 hover:bg-ghaf-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm">+ Add Lead</button>
+      </TopBar>
+
+      <div className="p-6 space-y-5">
+        {/* Stage summary */}
+        <div className="grid grid-cols-4 lg:grid-cols-7 gap-3">
+          {stageSummary.map(s=>(
+            <button key={s.stage} onClick={()=>setStageFilter(stageFilter===s.stage?'All':s.stage)}
+              className={`bg-white rounded-xl p-3 shadow-sm border text-center cursor-pointer hover:shadow-md transition-all ${stageFilter===s.stage?'border-ghaf-400 ring-2 ring-ghaf-200':'border-slate-100'}`}>
+              <div className="text-lg font-bold text-slate-700">{s.count}</div>
+              <div className="text-xs text-slate-500 truncate">{s.stage}</div>
+              {s.value>0&&<div className="text-xs text-ghaf-600 font-medium mt-0.5">{fmt(s.value)}</div>}
+            </button>
+          ))}
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>{['Lead','Contact','Company','Source','Stage','Score','Value','Owner',''].map(h=>(
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-slate-500">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {filtered.map(l=>(
+                  <tr key={l.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                    <td className="px-4 py-3 font-medium text-slate-800">{l.name}</td>
+                    <td className="px-4 py-3 text-slate-500">{l.contact}</td>
+                    <td className="px-4 py-3 text-slate-500">{l.company}</td>
+                    <td className="px-4 py-3 text-slate-500">{l.source}</td>
+                    <td className="px-4 py-3"><Badge label={l.stage} /></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                          <div className={`h-1.5 rounded-full ${l.score>=80?'bg-emerald-500':l.score>=60?'bg-amber-400':'bg-red-400'}`} style={{width:`${l.score}%`}}></div>
+                        </div>
+                        <span className={`text-xs font-semibold ${scoreColor(l.score)}`}>{l.score}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-slate-700">{fmt(l.value)}</td>
+                    <td className="px-4 py-3 text-slate-500">{l.owner}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button onClick={()=>openEdit(l)} className="text-slate-400 hover:text-ghaf-600">✏️</button>
+                        <button onClick={()=>deleteRecord('leads',l.id)} className="text-slate-400 hover:text-red-500">🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-3 text-xs text-slate-400 border-t border-slate-100">{filtered.length} leads · Total value: {fmt(filtered.reduce((a,l)=>a+l.value,0))}</div>
+        </div>
+      </div>
+
+      {(modal==='add'||modal==='edit') && (
+        <Modal title={modal==='add'?'Add Lead':'Edit Lead'} onClose={()=>setModal(null)}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2"><Input label="Lead Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} /></div>
+            <Input label="Contact" value={form.contact} onChange={e=>setForm({...form,contact:e.target.value})} />
+            <Input label="Company" value={form.company} onChange={e=>setForm({...form,company:e.target.value})} />
+            <Input label="Value (AED)" type="number" value={form.value} onChange={e=>setForm({...form,value:e.target.value})} />
+            <Input label="Lead Score" type="number" min="0" max="100" value={form.score} onChange={e=>setForm({...form,score:e.target.value})} />
+            <Select label="Source" options={['Website','Referral','Conference','Cold Call','LinkedIn','Event','Partnership','Government RFP']} value={form.source} onChange={e=>setForm({...form,source:e.target.value})} />
+            <Select label="Stage" options={leadStages} value={form.stage} onChange={e=>setForm({...form,stage:e.target.value})} />
+            <Input label="Owner" value={form.owner} onChange={e=>setForm({...form,owner:e.target.value})} />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={()=>setModal(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 rounded-xl bg-ghaf-600 text-white text-sm font-semibold">Save</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── DEALS KANBAN ─────────────────────────────────────────────────────────────
+
+function Deals() {
+  const { deals, addRecord, updateRecord, deleteRecord } = useContext(CRMContext);
+  const [modal, setModal] = useState(null);
+  const [sel,   setSel]   = useState(null);
+  const emptyForm = { name:'', contact:'', company:'', value:'', stage:'Prospecting', probability:20, close:'', owner:'Rashed' };
+  const [form, setForm]   = useState(emptyForm);
+
+  const kanbanStages = dealStages.slice(0,4);
+
+  const openAdd  = (stage='Prospecting') => { setForm({...emptyForm,stage}); setModal('add'); };
+  const openEdit = d => { setForm({...d}); setSel(d); setModal('edit'); };
+
+  const save = () => {
+    const rec = { ...form, value: parseInt(form.value)||0, probability: parseInt(form.probability)||0 };
+    if (modal==='add') addRecord('deals', rec);
+    else updateRecord('deals', { ...sel, ...rec });
+    setModal(null);
+  };
+
+  const move = (deal, dir) => {
+    const idx = dealStages.indexOf(deal.stage);
+    const next = dealStages[idx+dir];
+    if (next) updateRecord('deals', { ...deal, stage: next, probability: [20,40,60,80,100,0][dealStages.indexOf(next)] });
+  };
+
+  const stageColors = {
+    'Prospecting':'bg-slate-50 border-slate-200',
+    'Qualification':'bg-blue-50 border-blue-200',
+    'Proposal':'bg-violet-50 border-violet-200',
+    'Negotiation':'bg-amber-50 border-amber-200',
+    'Closed Won':'bg-emerald-50 border-emerald-200',
+    'Closed Lost':'bg-red-50 border-red-200',
+  };
+  const stageHeader = {
+    'Prospecting':'bg-slate-200 text-slate-700',
+    'Qualification':'bg-blue-100 text-blue-700',
+    'Proposal':'bg-violet-100 text-violet-700',
+    'Negotiation':'bg-amber-100 text-amber-700',
+    'Closed Won':'bg-emerald-100 text-emerald-700',
+    'Closed Lost':'bg-red-100 text-red-600',
+  };
+
+  return (
+    <div>
+      <TopBar title="Deals Pipeline">
+        <button onClick={()=>openAdd()} className="bg-ghaf-600 hover:bg-ghaf-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm">+ Add Deal</button>
+      </TopBar>
+
+      <div className="p-6 overflow-x-auto">
+        <div className="flex gap-4 min-w-max">
+          {dealStages.map(stage => {
+            const col = deals.filter(d=>d.stage===stage);
+            const total = col.reduce((a,d)=>a+d.value,0);
+            return (
+              <div key={stage} className={`w-72 flex-shrink-0 rounded-2xl border ${stageColors[stage]} kanban-col`}>
+                <div className={`px-4 py-3 rounded-t-2xl ${stageHeader[stage]} flex items-center justify-between`}>
+                  <div>
+                    <span className="font-semibold text-sm">{stage}</span>
+                    <span className="ml-2 text-xs opacity-70">{col.length}</span>
+                  </div>
+                  <div className="text-xs font-semibold opacity-80">{fmt(total)}</div>
+                </div>
+                <div className="p-3 space-y-3">
+                  {col.map(d=>(
+                    <div key={d.id} className="bg-white rounded-xl p-3 shadow-sm card-hover border border-white">
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-semibold text-slate-800 text-sm leading-tight pr-2">{d.name}</h4>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button onClick={()=>openEdit(d)} className="text-slate-300 hover:text-ghaf-500 text-xs">✏️</button>
+                          <button onClick={()=>deleteRecord('deals',d.id)} className="text-slate-300 hover:text-red-400 text-xs">🗑️</button>
+                        </div>
+                      </div>
+                      <div className="text-xs text-slate-400 mb-2">{d.contact} · {d.company}</div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-ghaf-700 text-sm">{fmt(d.value)}</span>
+                        <span className="text-xs text-slate-400">{d.close}</span>
+                      </div>
+                      <div className="mt-2">
+                        <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+                          <span>{d.owner}</span>
+                          <span>{d.probability}%</span>
+                        </div>
+                        <div className="bg-slate-100 rounded-full h-1">
+                          <div className="h-1 rounded-full bg-ghaf-500" style={{width:`${d.probability}%`}}></div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1 mt-2">
+                        {dealStages.indexOf(d.stage)>0 && dealStages.indexOf(d.stage)<dealStages.length-1 &&
+                          <button onClick={()=>move(d,-1)} className="text-xs px-2 py-0.5 bg-slate-100 hover:bg-slate-200 rounded text-slate-500">← Back</button>}
+                        {dealStages.indexOf(d.stage)<dealStages.length-2 &&
+                          <button onClick={()=>move(d,1)} className="text-xs px-2 py-0.5 bg-ghaf-100 hover:bg-ghaf-200 rounded text-ghaf-700">Advance →</button>}
+                      </div>
+                    </div>
+                  ))}
+                  <button onClick={()=>openAdd(stage)} className="w-full py-2 text-xs text-slate-400 hover:text-ghaf-600 hover:bg-white/60 rounded-xl transition-colors">+ Add deal</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {(modal==='add'||modal==='edit') && (
+        <Modal title={modal==='add'?'Add Deal':'Edit Deal'} onClose={()=>setModal(null)}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2"><Input label="Deal Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} /></div>
+            <Input label="Contact" value={form.contact} onChange={e=>setForm({...form,contact:e.target.value})} />
+            <Input label="Company" value={form.company} onChange={e=>setForm({...form,company:e.target.value})} />
+            <Input label="Value (AED)" type="number" value={form.value} onChange={e=>setForm({...form,value:e.target.value})} />
+            <Input label="Probability (%)" type="number" min="0" max="100" value={form.probability} onChange={e=>setForm({...form,probability:e.target.value})} />
+            <Select label="Stage" options={dealStages} value={form.stage} onChange={e=>setForm({...form,stage:e.target.value})} />
+            <Input label="Close Date" type="date" value={form.close} onChange={e=>setForm({...form,close:e.target.value})} />
+            <Input label="Owner" value={form.owner} onChange={e=>setForm({...form,owner:e.target.value})} />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={()=>setModal(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 rounded-xl bg-ghaf-600 text-white text-sm font-semibold">Save</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── ACCOUNTS ─────────────────────────────────────────────────────────────────
+
+function Accounts() {
+  const { accounts, addRecord, updateRecord, deleteRecord } = useContext(CRMContext);
+  const [search, setSearch] = useState('');
+  const [modal,  setModal]  = useState(null);
+  const [sel,    setSel]    = useState(null);
+  const emptyForm = { name:'', industry:'', employees:'', revenue:'', website:'', phone:'', status:'Prospect', contacts:0, deals:0, owner:'Rashed' };
+  const [form, setForm]     = useState(emptyForm);
+
+  const filtered = accounts.filter(a =>
+    a.name.toLowerCase().includes(search.toLowerCase()) ||
+    a.industry.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const openAdd  = () => { setForm(emptyForm); setModal('add'); };
+  const openEdit = a => { setForm({...a}); setSel(a); setModal('edit'); };
+  const openView = a => { setSel(a); setModal('view'); };
+
+  const save = () => {
+    const rec = { ...form, employees: parseInt(form.employees)||0 };
+    if (modal==='add') addRecord('accounts', rec);
+    else updateRecord('accounts', { ...sel, ...rec });
+    setModal(null);
+  };
+
+  const industryIcon = ind => ({'Aviation':'✈️','Telecom':'📡','Oil & Gas':'🛢️','Utilities':'⚡','Investment':'💰','Finance':'🏦','Government':'🏛️','Gov-Tech':'💻'}[ind]||'🏢');
+
+  return (
+    <div>
+      <TopBar title="Accounts">
+        <SearchBar value={search} onChange={setSearch} placeholder="Search accounts…" />
+        <button onClick={openAdd} className="bg-ghaf-600 hover:bg-ghaf-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm">+ Add Account</button>
+      </TopBar>
+
+      <div className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filtered.map(a => (
+            <div key={a.id} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 card-hover cursor-pointer" onClick={()=>openView(a)}>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-xl">{industryIcon(a.industry)}</div>
+                  <div>
+                    <h3 className="font-semibold text-slate-800">{a.name}</h3>
+                    <p className="text-xs text-slate-400">{a.industry}</p>
+                  </div>
+                </div>
+                <Badge label={a.status} />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-slate-500 mb-3">
+                <div>👤 {a.employees?.toLocaleString()} employees</div>
+                <div>💰 {a.revenue}</div>
+                <div>📞 {a.contacts} contacts</div>
+                <div>💼 {a.deals} deals</div>
+              </div>
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <span className="text-xs text-slate-400">Owner: {a.owner}</span>
+                <div className="flex gap-2" onClick={e=>e.stopPropagation()}>
+                  <button onClick={()=>openEdit(a)} className="text-slate-400 hover:text-ghaf-600 text-sm">✏️</button>
+                  <button onClick={()=>deleteRecord('accounts',a.id)} className="text-slate-400 hover:text-red-500 text-sm">🗑️</button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {(modal==='add'||modal==='edit') && (
+        <Modal title={modal==='add'?'Add Account':'Edit Account'} onClose={()=>setModal(null)}>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2"><Input label="Account Name" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} /></div>
+            <Select label="Industry" options={['Aviation','Telecom','Oil & Gas','Utilities','Investment','Finance','Government','Technology','Healthcare','Real Estate']} value={form.industry} onChange={e=>setForm({...form,industry:e.target.value})} />
+            <Select label="Status" options={['Customer','Prospect','Inactive']} value={form.status} onChange={e=>setForm({...form,status:e.target.value})} />
+            <Input label="Employees" type="number" value={form.employees} onChange={e=>setForm({...form,employees:e.target.value})} />
+            <Input label="Revenue" value={form.revenue} onChange={e=>setForm({...form,revenue:e.target.value})} placeholder="AED 1B" />
+            <Input label="Website" value={form.website} onChange={e=>setForm({...form,website:e.target.value})} />
+            <Input label="Phone" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})} />
+            <Input label="Owner" value={form.owner} onChange={e=>setForm({...form,owner:e.target.value})} />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={()=>setModal(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 rounded-xl bg-ghaf-600 text-white text-sm font-semibold">Save</button>
+          </div>
+        </Modal>
+      )}
+
+      {modal==='view' && sel && (
+        <Modal title="Account Details" onClose={()=>setModal(null)} wide>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center text-3xl">{({'Aviation':'✈️','Telecom':'📡','Oil & Gas':'🛢️','Utilities':'⚡','Investment':'💰','Finance':'🏦','Government':'🏛️'}[sel.industry]||'🏢')}</div>
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">{sel.name}</h2>
+                <p className="text-slate-500">{sel.industry}</p>
+                <Badge label={sel.status} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {[['Employees',sel.employees?.toLocaleString()],['Revenue',sel.revenue],['Website',sel.website],['Phone',sel.phone],['Contacts',sel.contacts],['Deals',sel.deals],['Owner',sel.owner]].map(([l,v])=>(
+                <div key={l} className="bg-slate-50 rounded-xl p-3">
+                  <div className="text-xs text-slate-400 mb-0.5">{l}</div>
+                  <div className="font-medium text-slate-700">{v}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── ACTIVITIES ───────────────────────────────────────────────────────────────
+
+function Activities() {
+  const { activities, addRecord, updateRecord, deleteRecord } = useContext(CRMContext);
+  const [search, setSearch]   = useState('');
+  const [typeFilter, setTypeF] = useState('All');
+  const [modal,  setModal]    = useState(null);
+  const [sel,    setSel]      = useState(null);
+  const emptyForm = { type:'Call', subject:'', contact:'', date:'', time:'', status:'Scheduled', duration:'', notes:'' };
+  const [form, setForm]       = useState(emptyForm);
+
+  const filtered = activities.filter(a =>
+    (typeFilter==='All'||a.type===typeFilter) &&
+    (a.subject.toLowerCase().includes(search.toLowerCase())||a.contact.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const openAdd  = () => { setForm({...emptyForm, date: new Date().toISOString().split('T')[0]}); setModal('add'); };
+  const openEdit = a => { setForm({...a}); setSel(a); setModal('edit'); };
+
+  const save = () => {
+    if (modal==='add') addRecord('activities', form);
+    else updateRecord('activities', { ...sel, ...form });
+    setModal(null);
+  };
+
+  const grouped = { Scheduled:[], Pending:[], Completed:[] };
+  filtered.forEach(a => grouped[a.status] && grouped[a.status].push(a));
+
+  return (
+    <div>
+      <TopBar title="Activities">
+        <SearchBar value={search} onChange={setSearch} placeholder="Search activities…" />
+        <div className="flex gap-1">
+          {['All',...activityTypes].map(t=>(
+            <button key={t} onClick={()=>setTypeF(t)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${typeFilter===t?'bg-ghaf-600 text-white':'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+              {t!=='All'&&<span className="mr-1">{typeIcon(t)}</span>}{t}
+            </button>
+          ))}
+        </div>
+        <button onClick={openAdd} className="bg-ghaf-600 hover:bg-ghaf-700 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm">+ Log Activity</button>
+      </TopBar>
+
+      <div className="p-6 space-y-6">
+        {Object.entries(grouped).map(([status, items]) => items.length>0 && (
+          <div key={status}>
+            <h3 className="text-sm font-semibold text-slate-500 mb-3 uppercase tracking-wide">{status} ({items.length})</h3>
+            <div className="space-y-2">
+              {items.sort((a,b)=>a.date.localeCompare(b.date)).map(a=>(
+                <div key={a.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex items-center gap-4 card-hover">
+                  <div className="text-2xl">{typeIcon(a.type)}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-slate-800">{a.subject}</span>
+                      <Badge label={a.type} color="bg-slate-100 text-slate-600" />
+                    </div>
+                    <div className="text-xs text-slate-400 mt-0.5">{a.contact} · {a.date} {a.time} {a.duration&&`· ${a.duration}`}</div>
+                    {a.notes && <div className="text-xs text-slate-500 mt-1 italic">"{a.notes}"</div>}
+                  </div>
+                  <Badge label={a.status} />
+                  <div className="flex gap-2">
+                    <button onClick={()=>openEdit(a)} className="text-slate-400 hover:text-ghaf-600">✏️</button>
+                    <button onClick={()=>deleteRecord('activities',a.id)} className="text-slate-400 hover:text-red-500">🗑️</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {filtered.length===0 && <div className="text-center text-slate-400 py-16">No activities found</div>}
+      </div>
+
+      {(modal==='add'||modal==='edit') && (
+        <Modal title={modal==='add'?'Log Activity':'Edit Activity'} onClose={()=>setModal(null)}>
+          <div className="grid grid-cols-2 gap-4">
+            <Select label="Type" options={activityTypes} value={form.type} onChange={e=>setForm({...form,type:e.target.value})} />
+            <Select label="Status" options={activityStatuses} value={form.status} onChange={e=>setForm({...form,status:e.target.value})} />
+            <div className="col-span-2"><Input label="Subject" value={form.subject} onChange={e=>setForm({...form,subject:e.target.value})} /></div>
+            <Input label="Contact" value={form.contact} onChange={e=>setForm({...form,contact:e.target.value})} />
+            <Input label="Duration" value={form.duration} onChange={e=>setForm({...form,duration:e.target.value})} placeholder="30 min" />
+            <Input label="Date" type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})} />
+            <Input label="Time" type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})} />
+            <div className="col-span-2">
+              <Field label="Notes">
+                <textarea className={inputCls} rows="3" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} />
+              </Field>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={()=>setModal(null)} className="px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600">Cancel</button>
+            <button onClick={save} className="px-5 py-2 rounded-xl bg-ghaf-600 text-white text-sm font-semibold">Save</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// ─── REPORTS ──────────────────────────────────────────────────────────────────
+
+function Reports() {
+  const { contacts, leads, deals, activities } = useContext(CRMContext);
+
+  const dealsByStage   = dealStages.map(s=>({ label:s, value:deals.filter(d=>d.stage===s).length }));
+  const leadsByStage   = leadStages.map(s=>({ label:s, value:leads.filter(l=>l.stage===s).length }));
+  const winRate        = deals.filter(d=>d.stage==='Closed Won').length / (deals.filter(d=>['Closed Won','Closed Lost'].includes(d.stage)).length || 1) * 100;
+  const actByType      = activityTypes.map(t=>({ label:t, value:activities.filter(a=>a.type===t).length }));
+  const topDeals       = [...deals].sort((a,b)=>b.value-a.value).slice(0,5);
+  const months         = ['Jan','Feb','Mar','Apr'];
+  const monthlyDeals   = [3,5,4,6];
+  const maxMD          = Math.max(...monthlyDeals);
+  const ownerPerf      = ['Rashed','Layla','Sara'].map(o=>({ name:o, deals:deals.filter(d=>d.owner===o).length, value:deals.filter(d=>d.owner===o).reduce((a,d)=>a+d.value,0) }));
+
+  return (
+    <div>
+      <TopBar title="Reports & Analytics" />
+      <div className="p-6 space-y-6">
+        {/* Top KPIs */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="Win Rate"         value={`${winRate.toFixed(0)}%`}  sub="Closed Won / Total Closed" icon="🎯" color="bg-emerald-50" />
+          <KpiCard label="Avg Deal Size"     value={fmt(deals.reduce((a,d)=>a+d.value,0)/deals.length|0)} sub="All deals" icon="💰" color="bg-blue-50" />
+          <KpiCard label="Total Pipeline"    value={fmt(deals.filter(d=>!['Closed Won','Closed Lost'].includes(d.stage)).reduce((a,d)=>a+d.value,0))} sub="Open deals" icon="📈" color="bg-violet-50" />
+          <KpiCard label="Activities Logged" value={activities.length} sub="All time" icon="📋" color="bg-amber-50" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Deals by Stage */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <h3 className="font-semibold text-slate-700 mb-4">Deals by Stage</h3>
+            <div className="space-y-2">
+              {dealsByStage.map(s=>(
+                <div key={s.label} className="flex items-center gap-3">
+                  <div className="w-28 text-xs text-slate-500 truncate">{s.label}</div>
+                  <div className="flex-1 bg-slate-100 rounded-full h-4">
+                    <div className="h-4 rounded-full bg-ghaf-500 flex items-center px-2 min-w-[20px]"
+                         style={{width:`${Math.max((s.value/deals.length)*100,s.value?8:0)}%`}}>
+                      <span className="text-white text-xs font-bold">{s.value}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Activity breakdown */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <h3 className="font-semibold text-slate-700 mb-4">Activity Breakdown</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {actByType.map((a,i)=>{
+                const colors = ['bg-emerald-500','bg-blue-500','bg-violet-500','bg-amber-500'];
+                return (
+                  <div key={a.label} className="bg-slate-50 rounded-xl p-4 text-center">
+                    <div className="text-2xl mb-1">{typeIcon(a.label)}</div>
+                    <div className="text-2xl font-bold text-slate-700">{a.value}</div>
+                    <div className="text-xs text-slate-500">{a.label}s</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Monthly activity */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <h3 className="font-semibold text-slate-700 mb-4">New Deals per Month</h3>
+            <div className="flex items-end gap-4 h-36">
+              {months.map((m,i)=>(
+                <div key={m} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="text-xs font-semibold text-slate-600">{monthlyDeals[i]}</div>
+                  <div className="w-full rounded-t-lg bg-gradient-to-t from-blue-600 to-blue-400 chart-bar"
+                       style={{height:`${(monthlyDeals[i]/maxMD)*100}px`}}></div>
+                  <div className="text-xs text-slate-400">{m}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Team performance */}
+          <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+            <h3 className="font-semibold text-slate-700 mb-4">Team Performance</h3>
+            <div className="space-y-3">
+              {ownerPerf.sort((a,b)=>b.value-a.value).map((o,i)=>(
+                <div key={o.name} className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 w-24">
+                    <span className="text-base">{['🥇','🥈','🥉'][i]}</span>
+                    <span className="font-medium text-slate-700 text-sm">{o.name}</span>
+                  </div>
+                  <div className="flex-1 bg-slate-100 rounded-full h-4">
+                    <div className="h-4 rounded-full bg-gradient-to-r from-ghaf-600 to-ghaf-400"
+                         style={{width:`${(o.value/Math.max(...ownerPerf.map(x=>x.value)))*100}%`}}></div>
+                  </div>
+                  <div className="text-xs font-semibold text-slate-600 w-20 text-right">{fmt(o.value)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Top Deals Table */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+          <h3 className="font-semibold text-slate-700 mb-4">Top 5 Deals by Value</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-xs text-slate-500 border-b border-slate-100">
+                {['#','Deal','Company','Stage','Value','Probability','Owner'].map(h=>(
+                  <th key={h} className="text-left py-2 font-medium">{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {topDeals.map((d,i)=>(
+                  <tr key={d.id} className="border-b border-slate-50 hover:bg-slate-50/60">
+                    <td className="py-3 text-slate-400 font-bold">#{i+1}</td>
+                    <td className="py-3 font-medium text-slate-700">{d.name}</td>
+                    <td className="py-3 text-slate-500">{d.company}</td>
+                    <td className="py-3"><Badge label={d.stage} /></td>
+                    <td className="py-3 font-bold text-ghaf-700">{fmt(d.value)}</td>
+                    <td className="py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                          <div className="h-1.5 rounded-full bg-ghaf-500" style={{width:`${d.probability}%`}}></div>
+                        </div>
+                        <span className="text-xs text-slate-500">{d.probability}%</span>
+                      </div>
+                    </td>
+                    <td className="py-3 text-slate-500">{d.owner}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+
+function App() {
+  const [page, setPage] = useState('dashboard');
+
+  const pages = {
+    dashboard:  <Dashboard />,
+    contacts:   <Contacts />,
+    leads:      <Leads />,
+    deals:      <Deals />,
+    accounts:   <Accounts />,
+    activities: <Activities />,
+    reports:    <Reports />,
+  };
+
+  return (
+    <CRMProvider>
+      <div className="flex min-h-screen">
+        <Sidebar active={page} setActive={setPage} />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
+            {pages[page]}
+          </div>
+        </div>
+      </div>
+    </CRMProvider>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
