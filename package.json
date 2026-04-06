@@ -1,0 +1,1 @@
+{"name": "ghaf-crm", "version": "1.0.0", "description": "GHAF CRM", "main": "index.js", "scripts": {"build": "echo 'No build needed'", "test": "echo 'No tests'"}}
